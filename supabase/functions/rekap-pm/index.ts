@@ -1,93 +1,152 @@
-// File: supabase/functions/rekap-pm/index.ts
+// supabase/functions/rekap-pm/index.ts
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+const SUMBER_LOG_TABLE = 'PCUsage';
+const PM_TABLE = 'PreventiveMaintenance';
+const ASSET_MASTER_TABLE = 'Aset';
+const JADWAL_PM_JAM = 900; // Interval PM dalam jam
 
-// Header ini penting agar function bisa dipanggil dari luar (misal oleh Cron Job)
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-Deno.serve(async (req) => {
-  // Baris ini juga untuk menangani CORS, wajib ada.
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+serve(async (req) => {
+  // Pastikan request adalah POST dan memiliki content-type yang sesuai
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Metode HTTP tidak diizinkan. Gunakan POST.' }), { status: 405, headers: { 'Content-Type': 'application/json' } });
+  }
+  
+  let assetId: string;
+  try {
+    const { assetId: receivedAssetId } = await req.json();
+    if (!receivedAssetId) {
+      return new Response(JSON.stringify({ error: 'assetId wajib diisi.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    }
+    assetId = receivedAssetId;
+  } catch (parseError) {
+    console.error('Gagal mem-parsing request body:', parseError);
+    return new Response(JSON.stringify({ error: 'Payload JSON tidak valid.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
 
   try {
-    // Membuat koneksi ke Supabase dengan hak akses admin penuh
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // 1. Ambil semua data aset yang relevan
-    const { data: asetList, error: asetError } = await supabaseAdmin
-      .from('Aset')
-      .select('idAset, namaAset, lokasiAset, lastMaintain_jam');
+    // 1. Ambil data PM saat ini (jika ada)
+    const { data: currentPmData, error: pmError } = await supabaseAdmin
+      .from(PM_TABLE)
+      .select('lastMaintain, namaAset, lokasiAset, jamPenggunaan') // Ambil juga jamPenggunaan yang sudah ada
+      .eq('idAset', assetId)
+      .single();
 
-    if (asetError) throw asetError;
+    if (pmError && pmError.code !== 'PGRST116') { // PGRST116 berarti "tidak ditemukan"
+      console.error('Error saat mengambil data PM:', pmError);
+      throw pmError;
+    }
+    
+    // Inisialisasi nilai untuk upsert
+    let namaAsetValue: string | null = currentPmData?.namaAset ?? null;
+    let lokasiAsetValue: string | null = currentPmData?.lokasiAset ?? null;
+    // lastMaintain adalah nilai 'meter' terakhir pada saat PM dilakukan.
+    // Jika belum pernah PM, anggap 0 atau waktu awal.
+    const lastMaintainValue: number = currentPmData?.lastMaintain ?? 0; 
+    // jamPenggunaan adalah total jam penggunaan yang *sudah tercatat* di tabel PM
+    const existingJamPenggunaan: number = currentPmData?.jamPenggunaan ?? 0;
 
-    const rekapList = [];
-    const maintenanceInterval = 900; // Batas jam untuk PM
-
-    // 2. Loop untuk setiap aset untuk menghitung rekapnya
-    for (const aset of asetList) {
-      // Hitung total jam penggunaan seumur hidup dari tabel PCUsage
-      const { data: totalUsage, error: usageError } = await supabaseAdmin
-        .from('PCUsage')
-        .select('durasiPakai')
-        .eq('idAset', aset.idAset);
+    // Jika data PM belum ada, ambil namaAset dan lokasiAset dari tabel master
+    if (!currentPmData) {
+      const { data: masterAsset, error: masterError } = await supabaseAdmin
+        .from(ASSET_MASTER_TABLE)
+        .select('namaAset, lokasiAset')
+        .eq('idAset', assetId)
+        .single();
       
-      if (usageError) throw usageError;
-      
-      const jamPenggunaan = totalUsage.reduce((acc, row) => acc + row.durasiPakai, 0);
-      
-      // Hitung jam pakai sejak maintenance terakhir dilakukan
-      const jamPakaiSejakPM = jamPenggunaan - aset.lastMaintain_jam;
-      
-      // Hitung sisa jam menuju jadwal PM 900 jam berikutnya
-      const sisaJam = maintenanceInterval - jamPakaiSejakPM;
-
-      // Logika untuk menentukan teks rekomendasi
-      let rekomendasi = 'Aman';
-      if (sisaJam <= 0) {
-        rekomendasi = 'Wajib Lakukan PM!';
-      } else if (sisaJam <= 100) { // Angka 100 jam ini bisa kamu sesuaikan
-        rekomendasi = 'Segera Jadwalkan PM';
+      if (masterError) {
+        console.error(`Aset dengan ID ${assetId} tidak ditemukan di tabel master '${ASSET_MASTER_TABLE}':`, masterError);
+        return new Response(JSON.stringify({ error: `Aset dengan ID ${assetId} tidak ditemukan di tabel master '${ASSET_MASTER_TABLE}'.` }), { status: 404, headers: { 'Content-Type': 'application/json' } });
       }
-
-      // Kumpulkan hasil kalkulasi
-      rekapList.push({
-        idAset: aset.idAset,
-        namaAset: aset.namaAset,
-        lokasiAset: aset.lokasiAset,
-        rekomendasi: rekomendasi,
-        jamPenggunaan: jamPenggunaan,
-        lastMaintain: aset.lastMaintain_jam,
-        sisaJam: sisaJam,
-      });
+      
+      namaAsetValue = masterAsset.namaAset;
+      lokasiAsetValue = masterAsset.lokasiAset;
     }
 
-    // 3. Simpan semua hasil rekap ke tabel 'PreventiveMaintenance'.
-    // 'upsert' akan otomatis update jika data aset sudah ada, atau buat baru jika belum.
+    // 2. Hitung total jam penggunaan baru dari tabel PCUsage
+    // Penting: Pastikan 'durasiPakai' di PCUsage adalah angka yang valid (misalnya, integer atau float)
+    const { data: logData, error: logError } = await supabaseAdmin
+      .from(SUMBER_LOG_TABLE)
+      .select('durasiPakai')
+      .eq('idAset', assetId);
+
+    if (logError) {
+      console.error('Error saat mengambil data log PCUsage:', logError);
+      throw logError;
+    }
+
+    // Total jam penggunaan yang baru dihitung dari semua log untuk assetId ini
+    const totalJamPenggunaanDariLog = logData.reduce((acc, row) => acc + (row.durasiPakai || 0), 0);
+    
+    // Logika perhitungan jamPenggunaan yang akan disimpan ke tabel PM:
+    // Opsi A (yang saat ini Anda gunakan): Total akumulatif dari semua log
+    // `jamPenggunaan` di tabel PM akan selalu mencerminkan `totalJamPenggunaanDariLog`
+    const jamPenggunaanUntukPM = totalJamPenggunaanDariLog;
+
+    // Opsi B (jika Anda ingin `jamPenggunaan` di PM adalah total sejak maintenance terakhir)
+    // Ini membutuhkan kolom `last_rekap_timestamp` di tabel PM atau filter log PCUsage berdasarkan waktu `lastMaintain`
+    // Contoh (jika Anda punya `waktu_mulai_pakai` di PCUsage):
+    // const { data: logDataFiltered, error: logErrorFiltered } = await supabaseAdmin
+    //   .from(SUMBER_LOG_TABLE)
+    //   .select('durasiPakai')
+    //   .eq('idAset', assetId)
+    //   .gte('waktu_mulai_pakai', new Date(lastMaintainTimestamp).toISOString()); // Asumsi lastMaintain adalah timestamp
+    // const jamPenggunaanUntukPM = logDataFiltered.reduce((acc, row) => acc + (row.durasiPakai || 0), 0) + lastMaintainValue; // Jika lastMaintain adalah "meter" terakhir
+
+    // 3. Hitung sisa jam dan buat rekomendasi
+    // Sisa jam dihitung dari "meter" terakhir (lastMaintainValue) ditambah interval PM (JADWAL_PM_JAM) 
+    // dikurangi total jam penggunaan saat ini (jamPenggunaanUntukPM)
+    const sisaJamValue = (lastMaintainValue + JADWAL_PM_JAM) - jamPenggunaanUntukPM;
+    
+    let rekomendasiText: string;
+    if (sisaJamValue <= 0) {
+      rekomendasiText = `PM TERLAMBAT! Segera lakukan maintenance. Total jam penggunaan: ${Math.round(jamPenggunaanUntukPM)}.`;
+    } else if (sisaJamValue < 50) {
+      rekomendasiText = `Segera lakukan maintenance! Sisa jam: ${Math.round(sisaJamValue)}. Total jam penggunaan: ${Math.round(jamPenggunaanUntukPM)}.`;
+    } else {
+      rekomendasiText = `Dalam batas aman. PM berikutnya sekitar ${Math.round(sisaJamValue)} jam lagi. Total jam penggunaan: ${Math.round(jamPenggunaanUntukPM)}.`;
+    }
+
+    // 4. Update/Insert tabel PM dengan semua data yang sudah lengkap
     const { error: upsertError } = await supabaseAdmin
-      .from('PreventiveMaintenance')
-      .upsert(rekapList, { onConflict: 'idAset' });
+      .from(PM_TABLE)
+      .upsert({
+        idAset: assetId,
+        namaAset: namaAsetValue,
+        lokasiAset: lokasiAsetValue,
+        jamPenggunaan: jamPenggunaanUntukPM, // Ini adalah total jam penggunaan akumulatif
+        lastMaintain: lastMaintainValue,     // Ini adalah "meter" pada saat maintenance terakhir
+        sisaJam: sisaJamValue,
+        rekomendasi: rekomendasiText,
+      }, {
+        onConflict: 'idAset', // Jika idAset sudah ada, update; jika belum, insert baru
+        ignoreDuplicates: false // Pastikan baris diupdate
+      });
+      
+    if (upsertError) {
+      console.error('Error saat upsert data PM:', upsertError);
+      throw upsertError;
+    }
 
-    if (upsertError) throw upsertError;
-
-    // Kirim respon sukses
-    return new Response(
-      JSON.stringify({ message: `Rekap PM berhasil untuk ${rekapList.length} aset.` }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ 
+      message: `Rekap untuk aset ${assetId} berhasil diupdate.`,
+      jamPenggunaanSaatIni: jamPenggunaanUntukPM,
+      sisaJamMenujuPM: sisaJamValue,
+      rekomendasi: rekomendasiText
+    }), { headers: { 'Content-Type': 'application/json' } });
 
   } catch (error) {
-    // Kirim respon jika terjadi error
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.error('Terjadi error di dalam function rekap-pm:', error);
+    // Berikan pesan error yang lebih informatif kepada klien
+    return new Response(JSON.stringify({ 
+      error: 'Terjadi kesalahan pada server saat merekap data.', 
+      details: error.message 
+    }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 });
