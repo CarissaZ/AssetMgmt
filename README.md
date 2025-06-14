@@ -48,7 +48,6 @@ Alur kerjanya adalah sebagai berikut:
 | **Database** | Postgres (via Supabase) | Menyimpan semua data terkait aset dan penggunaannya. |
 | **Serverless**| Supabase Edge Functions | Endpoint API untuk menerima data dari agen Python. |
 | **Agent** | Python | Skrip untuk memonitor dan mengirim data penggunaan dari PC klien. |
-| **Deployment** | Vercel / Netlify (disarankan) | Platform untuk hosting aplikasi frontend React. |
 
 ---
 
