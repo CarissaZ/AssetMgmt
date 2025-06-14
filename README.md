@@ -7,7 +7,7 @@
 
 Proyek tugas akhir ini bertujuan untuk membangun sebuah sistem manajemen aset berbasis website yang dilengkapi dengan fitur **Preventive Maintenance**. Sistem ini secara proaktif memonitor penggunaan PC/laptop untuk memberikan rekomendasi perawatan sebelum terjadi kerusakan.
 
-## ✨ Latar Belakang
+## Latar Belakang
 
 Manajemen aset IT di banyak organisasi seringkali bersifat reaktif—perbaikan dilakukan setelah ada laporan kerusakan. Pendekatan ini dapat mengganggu produktivitas dan memakan biaya yang lebih tinggi.
 
@@ -22,7 +22,7 @@ Proyek ini mengusulkan solusi proaktif dengan mengimplementasikan fitur *prevent
 
 ---
 
-## 🛠Arsitektur Sistem
+## Arsitektur Sistem
 
 Sistem ini terdiri dari tiga komponen utama yang bekerja sama:
 
@@ -53,12 +53,12 @@ Alur kerjanya adalah sebagai berikut:
 ---
 
 
-## 📄 Struktur Proyek
+## Struktur Proyek
 
 ```
 .
-├── /agent                 # Berisi skrip Python untuk dijalankan di PC klien
-│   └── agent.py
+├── /PCLogAgent                 # Berisi skrip Python untuk dijalankan di PC klien
+│   └── PCUsageLogger.py
 ├── /frontend              # Kode sumber aplikasi React + Vite
 │   ├── /public
 │   └── /src
