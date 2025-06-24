@@ -1,33 +1,49 @@
 // src/main.jsx
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 
 // Impor kerangka utama dan SEMUA halaman
 import App from './App.jsx';
+import LoginPage from './pages/LoginPage.jsx'; // Halaman login
 import HomePage from './pages/HomePage.jsx';
-import AsetPage from './pages/AsetPage.jsx'; // Menggunakan nama AsetPage.jsx
+import AsetPage from './pages/AsetPage.jsx';
 import PMPage from './pages/PMPage.jsx';
+import PerbaikanPage from './pages/PerbaikanPage.jsx';
 import './index.css';
 
 // Membuat "peta" websitenya dengan semua halaman
 const router = createBrowserRouter([
+  // Rute untuk halaman login, ini bersifat publik
+  {
+    path: "/login",
+    element: <LoginPage />,
+  },
+  // Rute utama ("/") yang akan dilindungi
   {
     path: "/",
-    element: <App />,
+    element: <App />, // App akan bertindak sebagai penjaga (guard)
     children: [
+      // Halaman default akan diarahkan ke /pm
       {
         index: true,
+        element: <Navigate to="/pm" replace />,
+      },
+      {
+        path: "homepage", // Path diubah agar tidak bentrok dengan index
         element: <HomePage />,
       },
       {
-        path: "aset", // Path untuk Halaman Data Aset
+        path: "aset",
         element: <AsetPage />,
       },
       {
-        path: "pm", // Path untuk Halaman Preventive Maintenance
+        path: "pm",
         element: <PMPage />,
+      },
+      {
+        path: "perbaikan", 
+        element: <PerbaikanPage />, 
       },
     ],
   },

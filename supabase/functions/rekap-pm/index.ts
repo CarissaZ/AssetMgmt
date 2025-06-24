@@ -106,9 +106,9 @@ serve(async (req) => {
     
     let rekomendasiText: string;
     if (sisaJamValue <= 0) {
-      rekomendasiText = `PM TERLAMBAT! Segera lakukan maintenance. Total jam penggunaan: ${Math.round(jamPenggunaanUntukPM)}.`;
+      rekomendasiText = `PM TERLAMBAT! Segera lakukan pembersihan debu kipas PC, pastikan sisa memory 7%-28%, dan update antivirus & sistem. Total jam penggunaan: ${Math.round(jamPenggunaanUntukPM)}.`;
     } else if (sisaJamValue < 50) {
-      rekomendasiText = `Segera lakukan maintenance! Sisa jam: ${Math.round(sisaJamValue)}. Total jam penggunaan: ${Math.round(jamPenggunaanUntukPM)}.`;
+      rekomendasiText = `Segera lakukan pembersihan debu kipas PC, pastikan sisa memory 7%-28%, dan update antivirus & sistem! Sisa jam: ${Math.round(sisaJamValue)}. Total jam penggunaan: ${Math.round(jamPenggunaanUntukPM)}.`;
     } else {
       rekomendasiText = `Dalam batas aman. PM berikutnya sekitar ${Math.round(sisaJamValue)} jam lagi. Total jam penggunaan: ${Math.round(jamPenggunaanUntukPM)}.`;
     }
@@ -116,7 +116,7 @@ serve(async (req) => {
     // 4. Update/Insert tabel PM dengan semua data yang sudah lengkap
     const { error: upsertError } = await supabaseAdmin
       .from(PM_TABLE)
-      .upsert({
+      .upsert({ 
         idAset: assetId,
         namaAset: namaAsetValue,
         lokasiAset: lokasiAsetValue,

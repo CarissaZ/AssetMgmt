@@ -1,39 +1,31 @@
-// src/App.jsx
+// src/components/PrivateRoute.jsx
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { supabase } from './lib/supabaseClient';
+import { supabase } from '../lib/supabaseClient';
+import { Box, CircularProgress } from '@mui/material';
 
-// Material UI Components
-import { CircularProgress, Box } from '@mui/material';
-
-// Import Komponen Layout
-import DashboardLayout from './components/DashboardLayout';
-
-function App() {
+function PrivateRoute({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Ambil sesi yang sedang berjalan saat pertama kali dimuat
     const fetchSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
       setLoading(false);
     };
+
     fetchSession();
 
-    // 2. Dengarkan perubahan status login/logout
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
 
-    // 3. Hentikan listener saat komponen tidak lagi digunakan
     return () => {
       authListener.subscription.unsubscribe();
     };
   }, []);
 
-  // Tampilkan indikator loading saat sesi sedang diperiksa
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -42,10 +34,7 @@ function App() {
     );
   }
 
-  // Jika ada sesi (sudah login), tampilkan DashboardLayout.
-  // DashboardLayout akan menampilkan halaman anak (children) melalui <Outlet />.
-  // Jika tidak ada sesi, arahkan ke halaman login.
-  return session ? <DashboardLayout /> : <Navigate to="/login" />;
+  return session ? children : <Navigate to="/login" />;
 }
 
-export default App;
+export default PrivateRoute;
