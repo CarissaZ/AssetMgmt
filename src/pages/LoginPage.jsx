@@ -1,4 +1,5 @@
 // src/pages/LoginPage.jsx
+
 import React, { useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { Auth } from '@supabase/auth-ui-react';
@@ -9,25 +10,29 @@ import { Box, Paper, Typography } from '@mui/material';
 function LoginPage() {
   const navigate = useNavigate();
 
-  // Cek sesi pengguna. Jika pengguna sudah login, langsung arahkan ke halaman utama.
+  // Dengarkan perubahan status login. Jika berhasil, App.jsx akan mengambil alih.
+  // Tapi kita tetap bisa arahkan secara manual untuk memastikan transisi yang cepat.
   useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        navigate('/'); // Arahkan ke halaman dashboard/utama Anda
-      }
-    };
-    checkSession();
-
-    // Listener untuk mendeteksi perubahan status login (misal: setelah login berhasil)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        navigate('/'); // Arahkan ke halaman dashboard/utama Anda
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        navigate('/');
       }
     });
 
+    // Cek juga jika user membuka halaman /login padahal sudah login
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        navigate('/');
+      }
+    };
+    
+    checkSession();
+
     // Membersihkan listener saat komponen di-unmount
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, [navigate]);
 
   return (
@@ -55,7 +60,7 @@ function LoginPage() {
         <Auth
           supabaseClient={supabase}
           appearance={{ theme: ThemeSupa }}
-          providers={['google']} // Anda bisa hapus atau tambah provider lain seperti 'github'
+          providers={['google']}
           theme="light"
           localization={{
             variables: {

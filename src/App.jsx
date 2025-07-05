@@ -1,6 +1,7 @@
 // src/App.jsx
+
 import React, { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
 
 // Material UI Components
@@ -20,16 +21,19 @@ function App() {
       setSession(session);
       setLoading(false);
     };
-    fetchSession();
 
     // 2. Dengarkan perubahan status login/logout
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Ini akan otomatis terpanggil saat user login atau logout
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      setLoading(false); // Pastikan loading selesai setelah status berubah
     });
+
+    fetchSession();
 
     // 3. Hentikan listener saat komponen tidak lagi digunakan
     return () => {
-      authListener.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
   }, []);
 
@@ -42,10 +46,15 @@ function App() {
     );
   }
 
-  // Jika ada sesi (sudah login), tampilkan DashboardLayout.
-  // DashboardLayout akan menampilkan halaman anak (children) melalui <Outlet />.
+  // Jika ada sesi (sudah login), tampilkan layout dashboard yang berisi halaman anak.
   // Jika tidak ada sesi, arahkan ke halaman login.
-  return session ? <DashboardLayout /> : <Navigate to="/login" />;
+  return session ? (
+    <DashboardLayout>
+      <Outlet /> 
+    </DashboardLayout>
+  ) : (
+    <Navigate to="/login" />
+  );
 }
 
 export default App;

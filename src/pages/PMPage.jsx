@@ -17,7 +17,7 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CloseIcon from '@mui/icons-material/Close';
 
 // =================================================================================
-// KOMPONEN DIALOG
+// KOMPONEN DIALOG (Tidak ada perubahan di sini)
 // =================================================================================
 function ConfirmationDialog({ open, onClose, onConfirm, rekomendasi, isCreating }) {
   if (!rekomendasi) return null;
@@ -40,16 +40,16 @@ function ConfirmationDialog({ open, onClose, onConfirm, rekomendasi, isCreating 
         <Typography variant="caption" sx={{ color: 'error.main', display: 'block', mt: 2, fontWeight: 'bold' }}>Tindakan ini tidak dapat dibatalkan</Typography>
       </DialogContent>
       <DialogActions sx={{ justifyContent: 'center', p: 3, pt: 0 }}>
-        <Button 
-          onClick={onConfirm} 
-          variant="contained" 
-          disabled={isCreating} // Tombol dinonaktifkan saat proses pembuatan tiket
-          sx={{ 
-            backgroundColor: '#007bff', 
-            '&:hover': { backgroundColor: '#0056b3' }, 
-            textTransform: 'none', 
-            fontWeight: 'bold', 
-            padding: '10px 24px', 
+        <Button
+          onClick={onConfirm}
+          variant="contained"
+          disabled={isCreating}
+          sx={{
+            backgroundColor: '#007bff',
+            '&:hover': { backgroundColor: '#0056b3' },
+            textTransform: 'none',
+            fontWeight: 'bold',
+            padding: '10px 24px',
             borderRadius: '8px',
             '&.Mui-disabled': {
               backgroundColor: 'grey.300'
@@ -64,7 +64,7 @@ function ConfirmationDialog({ open, onClose, onConfirm, rekomendasi, isCreating 
 }
 
 // =================================================================================
-// KOMPONEN HALAMAN UTAMA (Hanya Konten)
+// KOMPONEN HALAMAN UTAMA
 // =================================================================================
 function PMPage() {
   const [rekomendasi, setRekomendasi] = useState([]);
@@ -75,8 +75,8 @@ function PMPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedRekomendasi, setSelectedRekomendasi] = useState(null);
-  const [isCreatingTicket, setIsCreatingTicket] = useState(false); // State untuk proses pembuatan tiket
-  
+  const [isCreatingTicket, setIsCreatingTicket] = useState(false);
+
   const itemsPerPage = 10;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
 
@@ -91,9 +91,9 @@ function PMPage() {
         .select('idPM, idAset, namaAset, lokasiAset, rekomendasi, jamPenggunaan, lastMaintain, sisaJam', { count: 'exact' })
         .range(from, to)
         .order('idPM', { ascending: true });
-        
+
       if (fetchError) { setError(`Gagal mengambil data: ${fetchError.message}.`) }
-      else { 
+      else {
         setRekomendasi(data.map(item => ({
           idRekomendasi: item.idPM, idAset: item.idAset, namaAset: item.namaAset,
           lokasiAset: item.lokasiAset, jenisRekomendasi: item.rekomendasi,
@@ -110,91 +110,95 @@ function PMPage() {
   const handleCheckboxChange = (event, row) => {
     const id = row.idRekomendasi;
     const isChecked = event.target.checked;
-    if (isChecked) { 
-      setSelected(prev => [...prev, id]); 
-      handleOpenDialog(row) 
+    if (isChecked) {
+      setSelected(prev => [...prev, id]);
+      handleOpenDialog(row)
     }
-    else { 
-      setSelected(prev => prev.filter(selectedId => selectedId !== id)) 
+    else {
+      setSelected(prev => prev.filter(selectedId => selectedId !== id))
     }
   };
 
-  const handleOpenDialog = (rekomendasi) => { 
-    setSelectedRekomendasi({ ...rekomendasi, id: rekomendasi.idRekomendasi }); 
-    setDialogOpen(true) 
+  const handleOpenDialog = (rekomendasi) => {
+    setSelectedRekomendasi({ ...rekomendasi, id: rekomendasi.idRekomendasi });
+    setDialogOpen(true)
   };
 
   const handleCloseDialog = (isConfirming) => {
-    // Jika dialog ditutup tanpa konfirmasi (klik di luar atau tombol close), uncheck checkbox-nya
-    if (!isConfirming && selectedRekomendasi) { 
-      setSelected(prev => prev.filter(id => id !== selectedRekomendasi.id)) 
+    if (!isConfirming && selectedRekomendasi) {
+      setSelected(prev => prev.filter(id => id !== selectedRekomendasi.id))
     }
     setDialogOpen(false);
     setSelectedRekomendasi(null);
   };
 
   // ====================== PERUBAHAN UTAMA DI SINI ======================
-  const handleConfirmRepair = async () => {
-    // 1. Pastikan ada data rekomendasi yang dipilih.
-    if (!selectedRekomendasi) {
-      alert('Terjadi kesalahan: Tidak ada data rekomendasi yang terpilih.');
-      return;
-    }
+  // Ganti fungsi lama Anda dengan yang ini
+const handleConfirmRepair = async () => {
+  if (!selectedRekomendasi) {
+    alert('Terjadi kesalahan: Tidak ada data rekomendasi yang terpilih.');
+    return;
+  }
 
-    setIsCreatingTicket(true); // Mulai proses pembuatan tiket
+  setIsCreatingTicket(true);
 
-    // 2. Siapkan objek data baru untuk tabel 'tiketIT'.
-    const newTicket = {
-      // idTiket akan digenerate otomatis oleh Supabase (jika tipe kolomnya uuid)
-      tanggalPengajuan: new Date().toISOString(),
-      namaPelapor: 'Staf Aset (Nia)',
-      idAset: selectedRekomendasi.idAset,
-      keluhan: 'Preventive maintenance berkala',
-      statusTiket: 'Aktif'
-    };
+  // VVVV --- BAGIAN INVESTIGASI SPASI TERSEMBUNYI --- VVVV
+  const idAsetAsli = selectedRekomendasi.idAset;
+  const idAsetSetelahTrim = idAsetAsli.trim(); // Menghapus spasi di awal/akhir
 
-    // 3. Gunakan blok try...catch untuk proses ke database.
-    try {
-      // 4. Panggil Supabase untuk memasukkan data baru.
-      const { error } = await supabase
-        .from('tiketIT')
-        .insert([newTicket]); 
+  console.log("================ Mulai Investigasi Spasi ================");
+  console.log(`ID Aset ASLI dari aplikasi: '${idAsetAsli}'`);
+  console.log(`Panjang string ASLI: ${idAsetAsli.length}`);
+  console.log("---");
+  console.log(`ID Aset SETELAH di-trim: '${idAsetSetelahTrim}'`);
+  console.log(`Panjang string SETELAH trim: ${idAsetSetelahTrim.length}`);
+  console.log("================ Selesai Investigasi Spasi ================");
+  // ^^^^ -------------------------------------------------------- ^^^^
 
-      // 5. Jika ada error dari Supabase, lemparkan error tersebut.
-      if (error) {
-        throw error;
-      }
-
-      // 6. Jika berhasil, berikan notifikasi sukses.
-      alert('Sukses! Tiket perbaikan baru telah dibuat dan dapat dilihat di halaman Perbaikan Aset.');
-
-    } catch (error) {
-      // Tangani error yang mungkin terjadi.
-      console.error('Gagal membuat tiket perbaikan:', error);
-      alert(`Gagal membuat tiket. Pesan error: ${error.message}`);
-    } finally {
-      // 7. Tutup dialog dan reset state, baik berhasil maupun gagal.
-      setIsCreatingTicket(false); // Selesaikan proses pembuatan tiket
-      handleCloseDialog(true);
-    }
+  const newTicket = {
+    tanggalPengajuan: new Date().toISOString(),
+    namaPelapor: 'Staf Aset (Nia)',
+    idAset: idAsetSetelahTrim, // <-- PENTING: Kita gunakan versi yang sudah bersih
+    keluhan: 'Preventive maintenance berkala',
+    statusTiket: 'Aktif'
   };
+
+  try {
+    const { error } = await supabase
+      .from('tiketIT')
+      .insert([newTicket]);
+
+    if (error) {
+      throw error;
+    }
+
+    alert('Sukses! Tiket perbaikan baru telah dibuat.');
+
+  } catch (error) {
+    console.error('PROSES GAGAL! Error dari Supabase:', error);
+    alert(`Gagal membuat tiket. Lihat konsol (F12) untuk detail error.`);
+  } finally {
+    setIsCreatingTicket(false);
+    handleCloseDialog(true);
+  }
+};
   // ========================================================================
 
   const isSelected = (id) => selected.includes(id);
-
   const tableHeaders = ['Id Rekomendasi', 'Id Aset', 'Nama Aset', 'Lokasi Aset', 'Jenis Rekomendasi', 'Jam Penggunaan', 'Last Maintain', 'Sisa Jam', 'Aksi'];
 
   return (
     <Box sx={{ p: { xs: 2, sm: 3 }, backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
+      {/* ... Sisa kode JSX Anda tidak berubah ... */}
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 2 }}>
-          <Button startIcon={<AccountCircleOutlinedIcon />} sx={{ textTransform: 'none', color: '#495057', fontWeight: '500' }}>
-              Profile
-          </Button>
+        <Button startIcon={<AccountCircleOutlinedIcon />} sx={{ textTransform: 'none', color: '#495057', fontWeight: '500' }}>
+          Profile
+        </Button>
       </Box>
       <Paper elevation={0} sx={{ borderRadius: '8px', overflow: 'hidden', border: '1px solid #dee2e6' }}>
         <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="h6" sx={{ fontWeight: '600', color: '#343A40' }}>
-              Rekomendasi Preventive Maintenance
+            Rekomendasi Preventive Maintenance
           </Typography>
           <TextField
             size="small" variant="outlined" placeholder="Cari data (contoh: PP001250101)"
@@ -233,8 +237,8 @@ function PMPage() {
                     <TableCell>{row.sisaJam}</TableCell>
                     <TableCell>
                       <Checkbox
-                          checked={isSelected(row.idRekomendasi)}
-                          onChange={(event) => handleCheckboxChange(event, row)}
+                        checked={isSelected(row.idRekomendasi)}
+                        onChange={(event) => handleCheckboxChange(event, row)}
                       />
                     </TableCell>
                   </TableRow>
@@ -246,19 +250,19 @@ function PMPage() {
       </Paper>
       {totalPages > 1 && (
         <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
-          <Pagination 
-              count={totalPages} page={currentPage} onChange={(_, value) => setCurrentPage(value)} 
-              color="primary" shape="rounded"
-              sx={{ '& .Mui-selected': { backgroundColor: '#28a745 !important', color: 'white' } }}
+          <Pagination
+            count={totalPages} page={currentPage} onChange={(_, value) => setCurrentPage(value)}
+            color="primary" shape="rounded"
+            sx={{ '& .Mui-selected': { backgroundColor: '#28a745 !important', color: 'white' } }}
           />
         </Box>
       )}
-      <ConfirmationDialog 
+      <ConfirmationDialog
         open={dialogOpen}
         onClose={() => handleCloseDialog(false)}
         onConfirm={handleConfirmRepair}
         rekomendasi={selectedRekomendasi}
-        isCreating={isCreatingTicket} // Kirim status proses ke dialog
+        isCreating={isCreatingTicket}
       />
     </Box>
   );
